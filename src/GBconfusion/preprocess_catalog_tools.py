@@ -7,7 +7,7 @@ import argparse
 
 def preprocess_catalog(filepath, output_filename,
                        keys=None, T_obs=4*365*24*3600,
-                       delta_t=5, tdi=1.5, snr_preselection=0.01,
+                       delta_t=5, tdi=1.5, snr_preselection=0.001,
                        batch_size=1000):
     """
     Load the catalog, convert coordinates, and process waveforms.
