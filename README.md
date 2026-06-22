@@ -71,5 +71,7 @@ results = run_iterative_separation(state,
 from GBconfusion.load_run import load_run
 
 run = load_run(results_filepath)
-resolved_sources = run["data"]["resolved_table"] 
+resolved_sources = run["data"]["resolved_table"]
+freqs = run["data"]["global_fr"]
+psd_final = list(run["data"]["psd_iter"].values())[-1]
 ```
