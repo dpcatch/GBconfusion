@@ -11,7 +11,7 @@ The following settings can be modified if needed:
 - Instrumental noise (default: TDI A/E channel)
 - Distance cut (default: None)
 
-During the pre-processing of the catalog (waveform generation step), there is the possibility to apply a pre-exclusion of weak sources, based on an approximate SNR calculation. This is done through the argument `snr_preselection` (default: 0.01). It is recommended to use a pre-selection SNR not higher than 0.01, to avoid excluding possibly resolvable sources. Pre-excluded sources will be skipped during the waveform generation, and their contribution to the noise automatically added to the PSD.
+During the pre-processing of the catalog (waveform generation step), there is the possibility to apply a pre-exclusion of weak sources, based on an approximate SNR calculation. This is done through the argument `snr_preselection` (default: 0.001). It is recommended to use a pre-selection SNR not higher than 0.001, to avoid excluding possibly resolvable sources. Pre-excluded sources will be skipped during the waveform generation, and their contribution to the noise automatically added to the PSD.
 
 ## Installation
 
@@ -26,7 +26,7 @@ pip install GBconfusion
 **Step 1:** Pre-process binary catalog
 
 ```
-python -m GBconfusion.preprocess_catalog  --catalog_filepath  --output_filepath  --T_obs  --delta_t  --tdi  --snr_preselection  --batch_size  --keys
+python -m GBconfusion.preprocess_catalog  --filepath  --output  --T_obs  --delta_t  --tdi  --snr_preselection  --batch_size  --keys
 ```
 
 **Step 2:** Load the processed data
