@@ -64,3 +64,5 @@ binaries_test_*
 *.txt
 
 cosmic-inifile.ini 
+
+test-GBconf

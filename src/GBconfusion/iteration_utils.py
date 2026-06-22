@@ -276,6 +276,49 @@ def separate_snr(sources, indices, psd_total_global,  global_fr, calculate_snr_f
     
     return resolved, np.array(unresolved_idx)
 
+import pandas as pd
+
+def _build_run_output(results, state):
+    """
+    Convert raw results + state into the final user-facing dict.
+    This is the single source of truth for the output structure.
+    """
+    table_rows = []
+    for r in results["resolved_sources"]:
+        src = r["source"]
+        table_rows.append({
+            "id":          src["id"],
+            "f0":          src["f0"],
+            "fdot":        src["fdot"],
+            "Ampl":        src["Ampl"],
+            "snr":         r["snr"].real if np.iscomplexobj(r["snr"]) else r["snr"],
+            "ecliptic_lat": src.get("ecliptic_lat", np.nan),
+            "ecliptic_lon": src.get("ecliptic_lon", np.nan),
+            "lum_dist":    src.get("lum_dist", np.nan),
+        })
+
+    T_obs = state.get("T_obs", state["waveforms"].get("T_obs", 0))
+
+    return {
+        "meta": {
+            "T_obs":           T_obs,
+            "T_obs_yr":        T_obs / (365 * 24 * 3600),
+            "snr_threshold":   state["snr_threshold"],
+            "n_total_sources": len(state["waveforms"]["f0"]),
+            "iterations":      results["iterations"],
+        },
+        "data": {
+            "global_fr":        results["global_fr"],
+            "resolved_sources": results["resolved_sources"],   # full objects
+            "resolved_table":   pd.DataFrame(table_rows),      # lightweight summary
+            "psd_iter":         {f"iter_{it}": psd for it, psd in results["psd_confusion"]},
+            "history":          {
+                k: np.array([h[k] for h in results["history"]])
+                for k in results["history"][0]
+            } if results["history"] else {},
+        },
+    }
+
 def save_results_h5(output_file, results, state):
     with h5py.File(output_file, "w") as f:
 
@@ -495,6 +538,7 @@ def run_iterative_separation(state,
         print(f"  Unresolved: {n_tot_sources-results['n_resolved']} ({100 - results['n_resolved']/n_tot_sources*100:.1f}%)")
         print("=" * 60)
     
+    run = _build_run_output(results, state)
 
     if save_results:
         results_dir = Path("results")
@@ -506,4 +550,4 @@ def run_iterative_separation(state,
         
         save_results_h5(output_path, results, state)
 
-    return results
+    return run
