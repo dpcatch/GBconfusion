@@ -3,9 +3,16 @@ import h5py
 from GBconfusion.snr import approx_snr
 from GBconfusion.lisa_psd import psd_source_approx
 from GBconfusion.lisa_response_fastGB import  tdi_AE_fastGB_multi
+from jaxgb.jaxgb import JaxGBaccurate
+from jaxgb.params import GBObject
+from lisa_response_jaxgb import jaxgb_response_batch
+from lisaorbits import EqualArmlengthOrbits
+import jax
 from scipy.constants import c
+import pandas as pd
 from tqdm import tqdm
 import gc
+jax.config.update("jax_enable_x64", True)
 
 
 def characteristic_strain(T_obs, f0, Amp):
@@ -13,7 +20,7 @@ def characteristic_strain(T_obs, f0, Amp):
     return h_c
 
 
-def process_catalog_batches(catalog, T_obs, delta_t, tdi,  batch_size, output_file = 'galactic_binaries_waveforms.hdf5', snr_preselection = 0.001, verbose=True):
+def process_catalog_batches(catalog, T_obs, t0, t_init, delta_t, tdi,  batch_size=1000, output_file = 'galactic_binaries_waveforms.hdf5', snr_preselection = 0.001, verbose=True):
     """
     Function to process the catalog in batches
 
@@ -21,6 +28,8 @@ def process_catalog_batches(catalog, T_obs, delta_t, tdi,  batch_size, output_fi
     ------------------
     catalog: contains binaries parameters
     T_obs: in s
+    t0: starting time 
+    t_init: time of the catalog
     delta_t: sampling time in s
     batch_size: 
     output_file: name of output file
@@ -62,8 +71,8 @@ def process_catalog_batches(catalog, T_obs, delta_t, tdi,  batch_size, output_fi
             grp.create_dataset('A', shape=(0, N), maxshape=(None, N), dtype='complex128')
             grp.create_dataset('E', shape=(0, N), maxshape=(None, N), dtype='complex128')
             grp.create_dataset('fr', shape=(0, N), maxshape=(None, N), dtype='float64')
-            grp.create_dataset('ecliptic_lat', shape=(0,), maxshape=(None,), dtype='float64')
-            grp.create_dataset('ecliptic_lon', shape=(0,), maxshape=(None,), dtype='float64')
+            grp.create_dataset('Dec', shape=(0,), maxshape=(None,), dtype='float64')
+            grp.create_dataset('RA', shape=(0,), maxshape=(None,), dtype='float64')
     
         # Store observational parameters as attributes
         f.attrs['T_obs'] = T_obs
@@ -78,17 +87,17 @@ def process_catalog_batches(catalog, T_obs, delta_t, tdi,  batch_size, output_fi
             
             # Extract this batch from the full catalog
 
-            batch_params = np.column_stack([
+            batch_params = pd.DataFrame({
                 catalog['Frequency'][start_idx:end_idx][:, 0],
                 catalog['FrequencyDerivative'][start_idx:end_idx][:, 0],
                 catalog['Amplitude'][start_idx:end_idx][:, 0],
-                catalog['EclipticLatitude'][start_idx:end_idx][:, 0],
-                catalog['EclipticLongitude'][start_idx:end_idx][:, 0],
+                catalog['EquatorialLatitude'][start_idx:end_idx][:, 0],
+                catalog['EquatorialLongitude'][start_idx:end_idx][:, 0],
                 catalog['Polarization'][start_idx:end_idx][:, 0],
                 catalog['Inclination'][start_idx:end_idx][:, 0],
                 catalog['InitialPhase'][start_idx:end_idx][:, 0]
                 
-            ])
+            })
             
             meta_f0[start_idx:end_idx] = batch_params[:, 0]
             meta_fdot[start_idx:end_idx] = batch_params[:, 1]
@@ -124,16 +133,24 @@ def process_catalog_batches(catalog, T_obs, delta_t, tdi,  batch_size, output_fi
                     continue
 
                 params_sub = batch_params[mask]
+                gbo     = GBObject.from_pandas_dataframe(params_sub, t_init=t_init)
+                params_sub_jx  = gbo.to_jaxgb_array(t0=t0)
+
                 idxs = mask.nonzero()[0]
                 global_idxs = start_idx + idxs
 
-                A_sub, E_sub, kmin, fr_sub = tdi_AE_fastGB_multi(
-                    params_sub,
-                    delta_t=delta_t,
-                    T_obs=T_obs,
-                    N=N,
-                    tdi=tdi
+                orbits = EqualArmlengthOrbits()
+                myjaxgb = JaxGBaccurate(window=0.5, orbits=orbits, t_obs=T_obs, t0=t0, n=N)
+                tdi_fn  = jax.jit(lambda p: myjaxgb.get_tdi(p, tdi_generation=2.0, tdi_combination="AET"))
+
+                A_sub, E_sub,  fr_sub = jaxgb_response_batch(
+                    params = params_sub_jx,
+                    t_obs = T_obs,
+                    n=N,
+                    myjaxgb=myjaxgb,
+                    tdi_fn=tdi_fn
                 )
+
                 # Save position for sources with waveform
                 ecliptic_lat_sub = params_sub[:,3] 
                 ecliptic_lon_sub = params_sub[:,4]
@@ -142,7 +159,7 @@ def process_catalog_batches(catalog, T_obs, delta_t, tdi,  batch_size, output_fi
                 old = grp['indices'].shape[0]
                 new = old + len(global_idxs)
                 
-                for dset in ('indices', 'ecliptic_lat', 'ecliptic_lon'):
+                for dset in ('indices', 'Dec', 'RA'):
                     grp[dset].resize((new,))
                 for dset in ('A', 'E', 'fr'):
                     grp[dset].resize((new, N))
@@ -152,8 +169,8 @@ def process_catalog_batches(catalog, T_obs, delta_t, tdi,  batch_size, output_fi
                 grp['A'][old:new] = A_sub
                 grp['E'][old:new] = E_sub
                 grp['fr'][old:new] = fr_sub
-                grp['ecliptic_lat'][old:new] = ecliptic_lat_sub  
-                grp['ecliptic_lon'][old:new] = ecliptic_lon_sub
+                grp['Dec'][old:new] = ecliptic_lat_sub  
+                grp['RA'][old:new] = ecliptic_lon_sub
 
                 # Clear memory
                 del A_sub, E_sub, fr_sub, ecliptic_lat_sub, ecliptic_lon_sub

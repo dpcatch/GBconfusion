@@ -7,7 +7,7 @@ import argparse
 
 def preprocess_catalog(filepath, output_filename,
                        keys=None, T_obs=4*365*24*3600,
-                       delta_t=5, tdi=1.5, snr_preselection=0.001,
+                       delta_t=5, t0=0, t_init=0, tdi=1.5, snr_preselection=0.001,
                        batch_size=1000):
     """
     Load the catalog, convert coordinates, and process waveforms.
@@ -26,10 +26,8 @@ def preprocess_catalog(filepath, output_filename,
     # Coordinate conversion
     ra = param_binaries.pop("EquatorialLongitude")
     dec = param_binaries.pop("EquatorialLatitude")
-    c = SkyCoord(ra=ra, dec=dec, unit='rad', frame='icrs')
-    ecl = c.transform_to(GeocentricTrueEcliptic())
-    param_binaries["EclipticLongitude"] = ecl.lon.rad
-    param_binaries["EclipticLatitude"] = ecl.lat.rad
+    param_binaries["RightAscension"] = ra
+    param_binaries["Declination"] = dec
 
     # Clean memory
     del c, ecl, ra, dec
@@ -39,6 +37,8 @@ def preprocess_catalog(filepath, output_filename,
     # Process catalog in batches batches
     process_catalog_batches(param_binaries,
                             T_obs=T_obs,
+                            t0 =t0,
+                            t_init = t_init,
                             delta_t=delta_t,
                             tdi=tdi,
                             batch_size=batch_size,

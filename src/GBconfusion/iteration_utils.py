@@ -8,7 +8,7 @@ from scipy import ndimage
 from pathlib import Path
 
 
-def load_waveforms(filename, distance_cut=None):
+def load_waveforms(filename, ids_exclude= None, distance_cut=None):
 
     with h5py.File(filename, 'r') as f:
         n_tot = len(f['meta/f0'])
@@ -19,6 +19,9 @@ def load_waveforms(filename, distance_cut=None):
             keep = np.ones(n_tot, dtype=bool)
         else:
             keep = dist <= distance_cut
+
+        if ids_exclude is not None and len(ids_exclude) > 0:
+            keep[ids_exclude] = False
 
         ids_keep = np.where(keep)[0]
         n_keep = len(ids_keep)
