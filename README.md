@@ -34,7 +34,7 @@ python -m GBconfusion.preprocess_catalog  --filepath  --output  --T_obs  --delta
 ```
 from GBconfusion import load_waveforms
 
-data = load_waveform(output_filepath, distance_cut=None)
+data = load_waveforms(output_filepath, distance_cut=None)
 ```
 
 **Step 3:** Setup the data for the iteration and run it
