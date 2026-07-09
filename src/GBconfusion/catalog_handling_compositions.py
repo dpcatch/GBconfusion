@@ -13,7 +13,7 @@ def characteristic_strain(T_obs, f0, Amp):
     return h_c
 
 
-def process_catalog_batches(catalog, T_obs, delta_t, tdi,  batch_size, output_file = 'galactic_binaries_waveforms.hdf5', snr_preselection = 0.001, verbose=True):
+def process_catalog_batches(catalog, T_obs, delta_t, tdi,  batch_size, output_file = 'galactic_binaries_waveforms.hdf5', snr_preselection = 0.01, verbose=True):
     """
     Function to process the catalog in batches
 
@@ -69,6 +69,7 @@ def process_catalog_batches(catalog, T_obs, delta_t, tdi,  batch_size, output_fi
         f.attrs['T_obs'] = T_obs
         f.attrs['N_values'] = list(N_values.values())
         f.attrs['delta_t'] = delta_t
+        f.attrs['tdi'] = tdi
 
         # Process the batch
         for i in tqdm(range(n_batches), desc="Processing batches", disable=not verbose, mininterval=1.0):
